@@ -28,10 +28,6 @@ var (
 	ErrNumberOfVectorDoesNotMatch = errors.New(
 		"number of vectors from embedder does not match number of documents",
 	)
-	// ErrAssertingMetadata Metadata is stored as string, trigger.
-	ErrAssertingMetadata = errors.New(
-		"couldn't assert metadata to map",
-	)
 )
 
 // New creates and returns a vectorstore object for Opensearch
@@ -74,13 +70,27 @@ func (s Store) AddDocuments(
 		return ids, ErrNumberOfVectorDoesNotMatch
 	}
 
+	var documents []struct {
+		ID       string
+		Text     string
+		Vector   []float32
+		Metadata map[string]any
+	}
 	for i, doc := range docs {
 		id := uuid.NewString()
-		_, err := s.documentIndexing(ctx, id, opts.NameSpace, doc.PageContent, vectors[i], doc.Metadata)
-		if err != nil {
-			return ids, err
-		}
+		documents = append(documents, struct {
+			ID       string
+			Text     string
+			Vector   []float32
+			Metadata map[string]any
+		}{ID: id, Text: doc.PageContent, Vector: vectors[i], Metadata: doc.Metadata})
+
 		ids = append(ids, id)
+	}
+
+	_, err = s.batchDocumentIndexing(ctx, opts.NameSpace, documents)
+	if err != nil {
+		return nil, fmt.Errorf("%w", err)
 	}
 
 	return ids, nil
